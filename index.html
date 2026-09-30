@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#fff9f2">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Задачи">
+<title>Задачи</title>
+<style>
+:root{
+  --bg:#fff9f2; --ink:#000; --muted:#555; --ph:#616161; --press:#d9d9d9;
+  --green:#ccffad; --blue:#b1ddff; --red:#ff8686;
+  --shadow:0 -4px 15px rgba(84,79,74,.25);
+  --bb:max(12px, calc(env(safe-area-inset-bottom, 0px) - 12px));
+  --fabb:calc(var(--bb) + 72px);
+  color-scheme:light;
+}
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%;background:var(--bg);overflow:hidden}
+body{position:fixed;inset:0;font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;touch-action:manipulation}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+svg{display:block;flex:none}
+
+.app{position:fixed;inset:0;max-width:430px;margin:0 auto;background:var(--bg);overflow:hidden}
+
+/* screens */
+.screen{position:absolute;inset:0;display:none;flex-direction:column;background:var(--bg)}
+.screen.on{display:flex}
+.screen--pick.on{animation:rise .22s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+
+.hd{flex:none;padding:calc(env(safe-area-inset-top, 0px) + 32px) 36px 24px;background:var(--bg);position:relative;z-index:2}
+.hd h1{font-size:32px;line-height:38px;font-weight:700}
+.hd-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sort{flex:none;width:44px;height:44px;margin:-3px -10px -3px 0;display:grid;place-items:center}
+.sort svg{width:24px;height:24px}
+.sort g{transition:opacity .15s}
+.sort[data-dir="new"] .s-up,.sort[data-dir="old"] .s-down{opacity:.3}
+.hd .date{margin-top:4px;font-size:16px;line-height:19px;font-weight:500;color:var(--muted)}
+
+.scroll{flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding-bottom:calc(var(--fabb) + 70px)}
+.list{position:relative;padding-top:16px;min-height:100%}
+
+/* rows */
+.row{position:relative;display:flex;align-items:center;gap:16px;margin:0 20px 8px;padding:10px 16px;border-radius:99px;
+  -webkit-user-select:none;user-select:none;-webkit-touch-callout:none;transition:background-color .15s,opacity .2s}
+.tx{flex:1;min-width:0;font-size:16px;line-height:19px;margin:-4px 0;overflow-wrap:anywhere}
+.c-green{background:var(--green)} .c-blue{background:var(--blue)} .c-red{background:var(--red)}
+.row.pressed{background:var(--press)}
+.row.is-done{opacity:.5}
+.row.dragging{z-index:5;transition:none;box-shadow:0 8px 20px rgba(84,79,74,.25)}
+.row.dragging:not(.c-green):not(.c-blue):not(.c-red){background:var(--bg)}
+
+.cb{position:relative;flex:none;width:15px;height:15px;border:1px solid var(--ink);border-radius:2px;display:grid;place-items:center}
+.cb::after{content:"";position:absolute;inset:-14px}
+.cb svg{width:13px;height:13px;opacity:0;transition:opacity .12s}
+.is-done .cb svg{opacity:1}
+
+.grip{flex:none;box-sizing:content-box;width:20px;height:8.75px;padding:14px 12px;margin:-14px -12px;display:flex;flex-direction:column;justify-content:space-between;opacity:.5;touch-action:none;cursor:grab}
+.grip i{display:block;height:1px;background:var(--ink);border-radius:99px}
+
+.radio{position:relative;flex:none;width:20px;height:20px;margin:-2.5px 0;border:1px solid var(--ink);border-radius:50%}
+.radio::after{content:"";position:absolute;left:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--ink);transform:scale(0);transition:transform .12s}
+.row.sel .radio::after{transform:scale(1)}
+.row--pick{cursor:pointer}
+
+.dgroup+.dgroup{margin-top:24px}
+.dlabel{margin:0 36px 16px;font-size:16px;line-height:19px;font-weight:500;color:var(--muted)}
+
+.more{display:flex;align-items:center;gap:8px;margin:8px auto 0;padding:8px 12px;font-size:12px;line-height:14px;font-weight:500;color:var(--muted)}
+.more svg{width:14px;height:14px}
+
+.empty{min-height:calc(100% - 16px);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:0 36px;text-align:center}
+.empty-t{font-size:12px;line-height:14px;font-weight:500;color:var(--muted)}
+.btn{width:200px;height:51px;border-radius:99px;background:var(--ink);color:#fff;font-size:12px;font-weight:500}
+
+/* bottom chrome */
+.fade{position:absolute;left:0;right:0;bottom:0;height:var(--fabb);z-index:6;pointer-events:none;
+  background:linear-gradient(to bottom,rgba(0,0,0,0),rgba(0,0,0,.2));-webkit-backdrop-filter:blur(7.5px);backdrop-filter:blur(7.5px);
+  -webkit-mask-image:linear-gradient(to bottom,transparent,#000 40%);mask-image:linear-gradient(to bottom,transparent,#000 40%)}
+.bar{position:absolute;left:20px;right:20px;bottom:var(--bb);height:51px;border-radius:99px;background:var(--bg);box-shadow:var(--shadow);z-index:10;
+  display:grid;justify-content:center;align-items:start;padding-top:9px}
+.bar--tabs{grid-template-columns:repeat(3,104px)}
+.bar--pick{grid-template-columns:repeat(2,158px)}
+.bar[hidden]{display:none}
+.tab{display:flex;flex-direction:column;align-items:center;gap:4px;font-size:8px;line-height:7px;font-weight:500;opacity:.35;transition:opacity .15s}
+.tab.on,.bar--pick .tab{opacity:1}
+.tab svg{width:24px;height:24px}
+
+.fab{position:absolute;right:36px;bottom:var(--fabb);width:50px;height:50px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center;z-index:10;transition:transform .12s}
+.fab:active{transform:scale(.94)}
+.fab svg{width:26px;height:26px}
+.fab[hidden]{display:none}
+
+/* popover */
+.pop{position:absolute;left:50%;width:217px;height:58px;transform:translateX(-50%);z-index:20;filter:drop-shadow(0 4px 12px rgba(84,79,74,.28));animation:popin .14s ease-out}
+@keyframes popin{from{opacity:0;transform:translateX(-50%) scale(.94)}to{opacity:1;transform:translateX(-50%)}}
+.pop::after{content:"";position:absolute;left:50%;top:41px;width:14px;height:14px;background:var(--bg);border-radius:2px;transform:translateX(-50%) rotate(45deg)}
+.pop--below::after{top:3px}
+.pop-b{position:relative;z-index:1;height:50px;display:flex;align-items:center;gap:8px;padding:0 24px;background:var(--bg);border-radius:99px}
+.pop--below .pop-b{margin-top:8px}
+.sw{width:32px;height:32px;border-radius:50%;flex:none}
+.sw.on{box-shadow:inset 0 0 0 1.5px var(--ink)}
+.pdel{margin-left:16px;width:33px;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:8px;line-height:7px;font-weight:500}
+.pdel svg{width:24px;height:24px}
+
+/* composer */
+.cmp{position:fixed;inset:0;z-index:50}
+.cmp[hidden]{display:none}
+.cmp-bg{position:absolute;inset:0}
+.cmp-f{position:absolute;left:0;right:0;bottom:var(--fabb);max-width:430px;margin:0 auto;padding:0 20px;transition:bottom .18s ease-out}
+.cmp-in{width:100%;height:50px;border:0;outline:0;border-radius:99px;background:var(--bg);box-shadow:var(--shadow);
+  padding:0 62px 0 32px;font:inherit;font-size:16px;color:var(--ink);caret-color:var(--ph);-webkit-appearance:none;appearance:none}
+.cmp-in::placeholder{font-size:12px;color:var(--ph);opacity:1}
+.cmp-send{position:absolute;right:20px;top:0;width:50px;height:50px;border-radius:50%;background:var(--ink);color:var(--bg);display:grid;place-items:center}
+.cmp-send svg{width:28px;height:28px}
+
+/* toast */
+.toast{position:absolute;left:20px;right:98px;bottom:var(--fabb);height:50px;z-index:12;border-radius:99px;background:var(--ink);color:var(--bg);
+  display:flex;align-items:center;justify-content:space-between;gap:8px;padding:0 8px 0 20px;font-size:12px;font-weight:500;
+  opacity:0;transform:translateY(8px);pointer-events:none;transition:opacity .18s,transform .18s}
+.toast.on{opacity:1;transform:none;pointer-events:auto}
+.toast button{height:34px;padding:0 14px;border-radius:99px;background:rgba(255,249,242,.14);color:var(--bg);font-size:12px;font-weight:500}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+  <section class="screen" id="s-today">
+    <header class="hd"><h1>Сегодня</h1><p class="date" id="todayDate"></p></header>
+    <div class="scroll"><div class="list" id="l-today"></div></div>
+  </section>
+
+  <section class="screen" id="s-all">
+    <header class="hd"><div class="hd-row"><h1>Общий список</h1>
+      <button class="sort" id="sortBtn" data-act="sort" aria-label="Сортировка">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><g class="s-up"><path d="M8 19V5M4.5 8.5L8 5l3.5 3.5"/></g><g class="s-down"><path d="M16 5v14M12.5 15.5L16 19l3.5-3.5"/></g></svg>
+      </button></div></header>
+    <div class="scroll"><div class="list" id="l-all"></div></div>
+  </section>
+
+  <section class="screen" id="s-done">
+    <header class="hd"><h1>Выполненные</h1></header>
+    <div class="scroll"><div class="list" id="l-done"></div></div>
+  </section>
+
+  <section class="screen screen--pick" id="s-pick">
+    <header class="hd"><h1>Выбери задачи</h1></header>
+    <div class="scroll"><div class="list" id="l-pick"></div></div>
+  </section>
+
+  <div class="fade"></div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <button class="fab" id="fab" data-act="fab" aria-label="Добавить задачу">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+  </button>
+
+  <nav class="bar bar--tabs" id="tabs">
+    <button class="tab" data-act="tab" data-tab="today">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="17" rx="3"/><path d="M8 2.5v4M16 2.5v4M3.5 10h17"/></svg>
+      <span>Сегодня</span>
+    </button>
+    <button class="tab" data-act="tab" data-tab="all">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
+      <span>Все</span>
+    </button>
+    <button class="tab" data-act="tab" data-tab="done">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6.5L9 17.5l-5-5"/></svg>
+      <span>Выполнено</span>
+    </button>
+  </nav>
+
+  <nav class="bar bar--pick" id="pickBar" hidden>
+    <button class="tab" data-act="pick-back">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+      <span>Назад</span>
+    </button>
+    <button class="tab" data-act="pick-done">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6.5L9 17.5l-5-5"/></svg>
+      <span>Готово</span>
+    </button>
+  </nav>
+
+  <div class="cmp" id="cmp" hidden>
+    <div class="cmp-bg" id="cmpBg"></div>
+    <div class="cmp-f" id="cmpForm">
+      <input class="cmp-in" id="cmpIn" type="text" autocomplete="off" placeholder="Опишите задачу..." enterkeyhint="done" maxlength="300" aria-label="Текст задачи">
+      <button class="cmp-send" id="cmpSend" type="button" aria-label="Добавить">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6.5L9 17.5l-5-5"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+/* ---------- icons ---------- */
+const I = {
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6.5L9 17.5l-5-5"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
+  trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9.5 7V4.5h5V7M6 7l1 12.2a2 2 0 0 0 2 1.8h6a2 2 0 0 0 2-1.8L18 7M10 11v6M14 11v6"/></svg>'
+};
+const COLORS = { green: '#ccffad', blue: '#b1ddff', red: '#ff8686' };
+
+/* ---------- storage ---------- */
+const KEY = 'task-tracker-v1';
+const dayKey = (d = new Date()) => {
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+};
+const fmt = k => { const [y, m, d] = k.split('-'); return d + '.' + m + '.' + y.slice(2); };
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+function load() {
+  try {
+    const s = JSON.parse(localStorage.getItem(KEY));
+    if (s && s.tasks && s.pool && s.today && s.done) return s;
+  } catch (e) {}
+  return { tasks: {}, pool: [], today: { date: dayKey(), items: [] }, done: [] };
+}
+let S = load();
+// migration: creation time (older tasks carry it in their id), sort direction
+Object.values(S.tasks).forEach(t => { if (!t.created) t.created = parseInt(t.id.slice(0, -5), 36) || Date.now(); });
+if (S.sort !== 'old') S.sort = 'new';
+const poolSorted = () => S.pool.filter(id => S.tasks[id])
+  .sort((a, b) => S.sort === 'new' ? S.tasks[b].created - S.tasks[a].created : S.tasks[a].created - S.tasks[b].created);
+function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
+
+/* New day: checked → archive, unchecked → back to pool */
+function rollover() {
+  const now = dayKey();
+  if (S.today.date === now) return false;
+  const back = [], fin = [];
+  S.today.items.forEach(it => {
+    const t = S.tasks[it.id];
+    if (!t) return;
+    if (it.done) { fin.push({ id: t.id, text: t.text, date: S.today.date }); delete S.tasks[t.id]; }
+    else back.push(t.id);
+  });
+  S.done.unshift(...fin);
+  S.pool.unshift(...back);
+  S.today = { date: now, items: [] };
+  save();
+  return true;
+}
+
+/* ---------- ui state ---------- */
+const $ = id => document.getElementById(id);
+let tab = 'today';
+let picking = false;
+let sel = new Set();
+const pending = {};           // pool items waiting to be archived
+let composerTarget = 'pool';
+
+/* ---------- render ---------- */
+function render() {
+  closePop();
+  ['today', 'all', 'done'].forEach(t => $('s-' + t).classList.toggle('on', !picking && tab === t));
+  $('s-pick').classList.toggle('on', picking);
+  document.querySelectorAll('#tabs .tab').forEach(b => b.classList.toggle('on', b.dataset.tab === tab));
+  $('tabs').hidden = picking;
+  $('pickBar').hidden = !picking;
+  $('fab').hidden = picking;
+  $('todayDate').textContent = fmt(S.today.date);
+  renderToday(); renderAll(); renderDone();
+  if (picking) renderPick();
+}
+
+function rowToday(it) {
+  const t = S.tasks[it.id];
+  return `<div class="row${t.color ? ' c-' + t.color : ''}${it.done ? ' is-done' : ''}" data-id="${t.id}" data-list="today">
+    <button class="cb" data-act="tcheck" aria-label="Выполнено">${I.check}</button>
+    <p class="tx">${esc(t.text)}</p>${it.done ? '' : '<span class="grip" aria-label="Перетащить"><i></i><i></i><i></i></span>'}</div>`;
+}
+
+function renderToday() {
+  const items = S.today.items.filter(i => S.tasks[i.id]);
+  const el = $('l-today');
+  if (!items.length) {
+    el.innerHTML = `<div class="empty"><p class="empty-t">На сегодня список еще не создан</p><button class="btn" data-act="create">Создать список</button></div>`;
+    return;
+  }
+  const open = items.filter(i => !i.done), fin = items.filter(i => i.done);
+  el.innerHTML = [...open, ...fin].map(rowToday).join('') +
+    `<button class="more" data-act="more">${I.plus}Добавить еще задачу</button>`;
+}
+
+function renderAll() {
+  const el = $('l-all');
+  $('sortBtn').dataset.dir = S.sort;
+  const ids = poolSorted();
+  if (!ids.length) {
+    el.innerHTML = `<div class="empty"><p class="empty-t">Общий список пуст. Нажми +, чтобы добавить задачу</p></div>`;
+    return;
+  }
+  el.innerHTML = ids.map(id => {
+    const t = S.tasks[id];
+    return `<div class="row${t.color ? ' c-' + t.color : ''}${pending[id] ? ' is-done' : ''}" data-id="${id}" data-list="pool">
+      <button class="cb" data-act="pcheck" aria-label="Выполнено">${I.check}</button>
+      <p class="tx">${esc(t.text)}</p></div>`;
+  }).join('');
+}
+
+function renderDone() {
+  const el = $('l-done');
+  if (!S.done.length) {
+    el.innerHTML = `<div class="empty"><p class="empty-t">Здесь появятся выполненные задачи</p></div>`;
+    return;
+  }
+  const groups = new Map();
+  S.done.forEach(d => { if (!groups.has(d.date)) groups.set(d.date, []); groups.get(d.date).push(d); });
+  const keys = [...groups.keys()].sort().reverse();
+  el.innerHTML = keys.map(k => `<div class="dgroup"><p class="dlabel">${fmt(k)}</p>${
+    groups.get(k).map(d => `<div class="row is-done"><span class="cb">${I.check}</span><p class="tx">${esc(d.text)}</p></div>`).join('')
+  }</div>`).join('');
+}
+
+function renderPick() {
+  const el = $('l-pick');
+  const ids = poolSorted().filter(id => !pending[id]);
+  const link = `<button class="more" data-act="pick-new">${I.plus}Новая задача</button>`;
+  if (!ids.length) {
+    el.innerHTML = `<div class="empty"><p class="empty-t">Общий список пуст</p>${link}</div>`;
+    return;
+  }
+  el.innerHTML = ids.map(id => `<div class="row row--pick${sel.has(id) ? ' sel' : ''}" data-act="pick-row" data-id="${id}">
+    <span class="radio"></span><p class="tx">${esc(S.tasks[id].text)}</p></div>`).join('') + link;
+}
+
+/* ---------- toast ---------- */
+let toastT = null, undoFn = null;
+function toast(msg, undo) {
+  const el = $('toast');
+  el.innerHTML = `<span>${esc(msg)}</span>${undo ? '<button data-act="undo">Отменить</button>' : ''}`;
+  undoFn = undo || null;
+  el.classList.add('on');
+  clearTimeout(toastT);
+  toastT = setTimeout(hideToast, undo ? 4000 : 2000);
+}
+function hideToast() { $('toast').classList.remove('on'); undoFn = null; }
+
+/* ---------- actions ---------- */
+function openPicker() { picking = true; sel = new Set(); render(); $('l-pick').parentNode.scrollTop = 0; }
+function closePicker() { picking = false; render(); }
+function confirmPicker() {
+  const ids = poolSorted().filter(id => sel.has(id));
+  if (ids.length) {
+    S.pool = S.pool.filter(id => !sel.has(id));
+    ids.forEach(id => S.today.items.push({ id, done: false }));
+    save();
+  }
+  picking = false; tab = 'today';
+  render();
+}
+
+function toggleToday(id) {
+  const it = S.today.items.find(i => i.id === id);
+  if (!it) return;
+  it.done = !it.done;
+  save(); renderToday();
+}
+
+function togglePool(id, row) {
+  if (pending[id]) {
+    clearTimeout(pending[id]); delete pending[id];
+    row.classList.remove('is-done');
+    return;
+  }
+  row.classList.add('is-done');
+  pending[id] = setTimeout(() => {
+    delete pending[id];
+    const idx = S.pool.indexOf(id), t = S.tasks[id];
+    if (idx < 0 || !t) return;
+    const entry = { id, text: t.text, date: dayKey() };
+    S.pool.splice(idx, 1);
+    delete S.tasks[id];
+    S.done.unshift(entry);
+    save(); render();
+    toast('Задача выполнена', () => {
+      S.done = S.done.filter(d => d !== entry);
+      S.tasks[id] = t;
+      S.pool.splice(Math.min(idx, S.pool.length), 0, id);
+      save(); render();
+    });
+  }, 700);
+}
+
+function setColor(id, c) {
+  const t = S.tasks[id];
+  if (!t) return;
+  t.color = t.color === c ? null : c;
+  save(); render();
+}
+
+function removeTask(id, list) {
+  const t = S.tasks[id];
+  if (!t) return;
+  if (list === 'today') {
+    S.today.items = S.today.items.filter(i => i.id !== id);
+    S.pool.unshift(id);
+    save(); render();
+    toast('Задача вернулась в общий список');
+  } else {
+    const idx = S.pool.indexOf(id);
+    S.pool.splice(idx, 1);
+    delete S.tasks[id];
+    save(); render();
+    toast('Задача удалена', () => {
+      S.tasks[id] = t;
+      S.pool.splice(Math.min(idx, S.pool.length), 0, id);
+      save(); render();
+    });
+  }
+}
+
+function addTask(text) {
+  const id = uid();
+  S.tasks[id] = { id, text, color: null, created: Date.now() };
+  if (composerTarget === 'today') {
+    S.today.items.push({ id, done: false });
+  } else {
+    S.pool.unshift(id);
+    if (composerTarget === 'pick') sel.add(id);
+  }
+  save(); render();
+  if (composerTarget === 'pool' && tab !== 'all') toast('Добавлено в общий список');
+}
+
+/* ---------- clicks ---------- */
+let suppressClick = false;
+document.addEventListener('click', e => {
+  if (suppressClick) { suppressClick = false; e.preventDefault(); e.stopPropagation(); return; }
+  const a = e.target.closest('[data-act]');
+  if (!a) return;
+  const row = a.closest('.row');
+  const id = row && row.dataset.id;
+  switch (a.dataset.act) {
+    case 'tab': tab = a.dataset.tab; render(); break;
+    case 'create':
+    case 'more': openPicker(); break;
+    case 'fab': openComposer('pool'); break;
+    case 'sort':
+      S.sort = S.sort === 'new' ? 'old' : 'new';
+      save(); renderAll();
+      toast(S.sort === 'new' ? 'Сначала новые' : 'Сначала старые');
+      break;
+    case 'tcheck': toggleToday(id); break;
+    case 'pcheck': togglePool(id, row); break;
+    case 'pick-row':
+      sel.has(a.dataset.id) ? sel.delete(a.dataset.id) : sel.add(a.dataset.id);
+      a.classList.toggle('sel');
+      break;
+    case 'pick-back': closePicker(); break;
+    case 'pick-done': confirmPicker(); break;
+    case 'pick-new': openComposer('pick'); break;
+    case 'sw': setColor(pop.id, a.dataset.c); break;
+    case 'pdel': removeTask(pop.id, pop.list); break;
+    case 'undo': { const f = undoFn; hideToast(); f && f(); break; }
+  }
+}, true);
+
+/* ---------- popover (long press) ---------- */
+let pop = null;
+function openPop(row) {
+  closePop();
+  const list = row.parentNode, id = row.dataset.id, t = S.tasks[id];
+  if (!t) return;
+  row.classList.add('pressed');
+  const sc = list.closest('.scroll');
+  const spaceAbove = row.getBoundingClientRect().top - sc.getBoundingClientRect().top;
+  const below = spaceAbove < 62;
+  const el = document.createElement('div');
+  el.className = 'pop' + (below ? ' pop--below' : '');
+  el.style.top = (below ? row.offsetTop + row.offsetHeight : row.offsetTop - 58) + 'px';
+  el.innerHTML = `<div class="pop-b">${
+    Object.keys(COLORS).map(c => `<button class="sw${t.color === c ? ' on' : ''}" data-act="sw" data-c="${c}" style="background:${COLORS[c]}" aria-label="Цвет"></button>`).join('')
+  }<button class="pdel" data-act="pdel">${I.trash}<span>Удалить</span></button></div>`;
+  list.appendChild(el);
+  pop = { el, row, id, list: row.dataset.list };
+}
+function closePop() {
+  if (!pop) return;
+  pop.el.remove();
+  pop.row.classList.remove('pressed');
+  pop = null;
+}
+document.addEventListener('pointerdown', e => { if (pop && !e.target.closest('.pop')) closePop(); }, true);
+document.querySelectorAll('.scroll').forEach(s => s.addEventListener('scroll', closePop, { passive: true }));
+
+let lp = null;
+function lpStart(e) {
+  const row = e.target.closest('.row[data-list]');
+  if (!row || e.target.closest('.cb, .grip') || row.classList.contains('is-done') && row.dataset.list === 'pool') return;
+  lp = { row, x: e.clientX, y: e.clientY, t: setTimeout(() => {
+    lp = null;
+    suppressClick = true;
+    setTimeout(() => { suppressClick = false; }, 400);
+    if (navigator.vibrate) navigator.vibrate(12);
+    openPop(row);
+  }, 450) };
+}
+function lpCancel() { if (lp) { clearTimeout(lp.t); lp = null; } }
+['l-today', 'l-all'].forEach(id => {
+  const el = $(id);
+  el.addEventListener('pointerdown', lpStart);
+  el.addEventListener('contextmenu', e => e.preventDefault());
+});
+window.addEventListener('pointermove', e => { if (lp && Math.hypot(e.clientX - lp.x, e.clientY - lp.y) > 8) lpCancel(); });
+window.addEventListener('pointerup', lpCancel);
+window.addEventListener('pointercancel', lpCancel);
+
+/* ---------- drag to reorder (today, by grip) ---------- */
+let drag = null;
+$('l-today').addEventListener('pointerdown', e => {
+  const grip = e.target.closest('.grip');
+  if (!grip) return;
+  e.preventDefault();
+  closePop();
+  const row = grip.closest('.row'), sc = row.closest('.scroll');
+  const barTop = $('tabs').getBoundingClientRect().top;
+  drag = { row, sc, grip, startY: e.clientY, y: e.clientY, startScroll: sc.scrollTop, origTop: row.offsetTop, barTop, raf: 0 };
+  row.classList.add('dragging');
+  try { grip.setPointerCapture(e.pointerId); } catch (_) {}
+  drag.raf = requestAnimationFrame(autoScroll);
+});
+const movable = el => el && el.classList && el.classList.contains('row') && !el.classList.contains('is-done');
+function dragUpdate() {
+  const { row, sc } = drag;
+  const dy = drag.y - drag.startY + (sc.scrollTop - drag.startScroll);
+  const top = drag.origTop + dy, mid = top + row.offsetHeight / 2;
+  let p = row.previousElementSibling;
+  while (movable(p) && mid < p.offsetTop + p.offsetHeight / 2) { row.parentNode.insertBefore(row, p); p = row.previousElementSibling; }
+  let n = row.nextElementSibling;
+  while (movable(n) && mid > n.offsetTop + n.offsetHeight / 2) { row.parentNode.insertBefore(n, row); n = row.nextElementSibling; }
+  row.style.transform = `translateY(${top - row.offsetTop}px)`;
+}
+function autoScroll() {
+  if (!drag) return;
+  const r = drag.sc.getBoundingClientRect();
+  let v = 0;
+  if (drag.y < r.top + 60) v = -Math.ceil((r.top + 60 - drag.y) / 6);
+  else if (drag.y > drag.barTop - 40) v = Math.ceil((drag.y - drag.barTop + 40) / 6);
+  if (v) { drag.sc.scrollTop += Math.max(-14, Math.min(14, v)); dragUpdate(); }
+  drag.raf = requestAnimationFrame(autoScroll);
+}
+window.addEventListener('pointermove', e => { if (!drag) return; drag.y = e.clientY; dragUpdate(); }, { passive: true });
+function dragEnd() {
+  if (!drag) return;
+  cancelAnimationFrame(drag.raf);
+  const order = [...$('l-today').querySelectorAll('.row[data-id]')].map(r => r.dataset.id);
+  const map = new Map(S.today.items.map(i => [i.id, i]));
+  S.today.items = order.map(id => map.get(id)).filter(Boolean)
+    .concat(S.today.items.filter(i => !order.includes(i.id)));
+  drag.row.style.transform = '';
+  drag.row.classList.remove('dragging');
+  drag = null;
+  save(); renderToday();
+}
+window.addEventListener('pointerup', dragEnd);
+window.addEventListener('pointercancel', dragEnd);
+
+/* ---------- composer, pinned above the keyboard ---------- */
+const cmp = $('cmp'), form = $('cmpForm'), input = $('cmpIn');
+let baseH = window.innerHeight;
+function placeComposer() {
+  const vv = window.visualViewport;
+  const kb = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+  if (kb > 80) form.style.bottom = (kb + 12) + 'px';                 // iOS / Chrome: overlay keyboard
+  else if (window.innerHeight < baseH - 120) form.style.bottom = '12px'; // browsers that shrink the layout
+  else form.style.bottom = '';
+}
+function openComposer(target) {
+  composerTarget = target;
+  closePop();
+  if (!cmp.hidden) { input.focus(); return; }
+  baseH = Math.max(baseH, window.innerHeight);
+  cmp.hidden = false;
+  $('fab').hidden = true;
+  input.value = '';
+  input.focus();               // must stay synchronous for iOS to raise the keyboard
+  placeComposer();
+}
+function closeComposer() {
+  if (cmp.hidden) return;
+  cmp.hidden = true;
+  input.blur();
+  form.style.bottom = '';
+  $('fab').hidden = picking;
+  window.scrollTo(0, 0);
+}
+function submitTask() {
+  const text = input.value.trim().replace(/\s+/g, ' ');
+  if (!text) { closeComposer(); return; }
+  addTask(text);
+  input.value = '';
+  input.focus();
+}
+$('cmpSend').addEventListener('click', submitTask);
+$('cmpSend').addEventListener('pointerdown', e => e.preventDefault()); // keep keyboard open on send
+$('cmpBg').addEventListener('pointerdown', e => { e.preventDefault(); closeComposer(); });
+input.addEventListener('blur', () => setTimeout(() => {
+  if (document.activeElement !== input && !input.value.trim()) closeComposer();
+}, 120));
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); submitTask(); }
+  else if (e.key === 'Escape') closeComposer();
+});
+if (window.visualViewport) {
+  visualViewport.addEventListener('resize', placeComposer);
+  visualViewport.addEventListener('scroll', placeComposer);
+}
+window.addEventListener('resize', () => { if (cmp.hidden) baseH = window.innerHeight; placeComposer(); });
+
+/* ---------- day change ---------- */
+function checkDay() { if (rollover()) { picking = false; render(); } }
+document.addEventListener('visibilitychange', () => { if (!document.hidden) checkDay(); });
+window.addEventListener('focus', checkDay);
+setInterval(checkDay, 30000);
+
+rollover();
+render();
+})();
+</script>
+</body>
+</html>
